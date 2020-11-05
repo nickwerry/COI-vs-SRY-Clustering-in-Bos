@@ -2,7 +2,7 @@
 title: "6210 Assignment 2"
 author: "Nick Werry (with collaboration from Jason Moggridge)"
 date: "21/10/2020"
-output: html_notebook
+output: pdf_document
 params:
   gene1:
     label: "Select Gene 1 (as long as it's COI)"
@@ -79,12 +79,30 @@ params:
     min: 0.01
     max: 0.2
     step: 0.01
+  showalignments:
+    label: "Show alignments in browser?"
+    value: TRUE
+    input: radio
+    choices: [TRUE, FALSE]
+
 ---
 
+<!-- USE this line in the console to knit with custom parameters -->
+<!-- rmarkdown::render("Assignment 2_knit_w_params.Rmd", params = "ask") -->
+
 ## Setup
+
 ```{r setup}
 library(knitr)
-opts_chunk$set(tidy = TRUE)
+
+# install any dependencies that user is missing
+depends_on <- c("formatR", 'Biostrings', 'tidyverse', 
+                'rentrez', 'muscle', 'DECIPHER', 'ape',
+                'dendextend', 'ggplot2', 'ggdendro')
+new.packages <- depends_on[!(depends_on %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+opts_chunk$set(tidy = TRUE, cache=FALSE)
 ```
 
 ## Introduction\
@@ -128,8 +146,6 @@ min2 <- params$lowerlen2
 # searchTermGene1 <- sprintf("Bos[ORGN] AND %s[GENE]) AND 550:695[SLEN] NOT (genome[TITL]", gene1)
 searchTermGene1 <- sprintf("Bos[ORGN] AND %s[GENE]) AND %s:%s[SLEN] NOT (genome[TITL])", gene1, min1, max1)
 searchTermGene2 <- sprintf("Bos[ORGN] AND %s[GENE]) AND %s:%s[SLEN] NOT (genome[TITL])", gene2, min2, max2)
-searchTermGene1
-searchTermGene2
 
 ##Parameters
 #Tolerate X% "N"s in sequence
@@ -157,17 +173,13 @@ params
 ```
 
 
-
   The TN93 model of molecular evolution was selected as it incorporates different likelihoods for transversions and transitions, even distinguishing between C/T and A/G transitions. This model accepts unbalanced nucleotide abundance, which is important for this analysis as a mitochondrial gene (high CG content) is being compared with a Y chromosome gene (Tamura and Nei, 1993).
   Single linkage clustering was performed as it permits more disparate group membership, allowing minor sequence variations within species to still be assigned to the same cluster.
   A within cluster sequence variability threshold of 0.05 was set. Intra-species variability in COI typically ranges from 2-3%, while intra-genus variability is 10-20%, so threshold of 5% should allow for sequences to cluster by species within the same genus.
-
-
   
+
 #### Load and Tidy Data\
 Collect data from NCBI and process it to be suitable for analysis.
-
-
 ```{r Data}
 #Import Data from NCBI
 gene1_search <- entrez_search(db = "nuccore", term = searchTermGene1, retmax = 1000)
@@ -175,13 +187,12 @@ gene2_search <- entrez_search(db = "nuccore", term = searchTermGene2, retmax = 1
 
 #Prepare data for analysis
 gene1_fetch <- entrez_fetch(db = "nuccore", id = gene1_search$ids, rettype = "fasta")
-Sys.sleep(1)
+Sys.sleep(2)
 gene2_fetch <- entrez_fetch(db = "nuccore", id = gene2_search$ids, rettype = "fasta")
 
 #Write to fasta file
 write(gene1_fetch, "gene1_fetch.fasta", sep = "\n")
 write(gene2_fetch, "gene2_fetch.fasta", sep = "\n")
-
 #Read FASTA as DNA string (Note: can directly load FASTA files here if collected by other means)
 stringSet1 <- readDNAStringSet("gene1_fetch.fasta")
 stringSet2 <- readDNAStringSet("gene2_fetch.fasta")
@@ -205,41 +216,31 @@ gene2_df$ID <- str_extract(gene2_df$Name, "\\w+.[0-9]")
 #Reorder columns to more logical arrangement, remove cluttered Name column
 gene1_df <- gene1_df[, c("Species", "ID", "Sequence")]
 gene2_df <- gene2_df[, c("Species", "ID", "Sequence")]
-```
-
-
-```{r filtering}
 
 #Filter to remove missing or low quality sequences
-# JM added a column called seqlen to clean up code 
 gene1_df <- gene1_df %>%
   filter(!is.na(Sequence)) %>%
-  mutate(FilteredSequence = str_remove_all(Sequence, "^N+|N+$|-"),
-         seqlen = length(FilteredSequence)) %>%
-  filter(str_count(FilteredSequence, "N") <= (missing.data*seqlen)) %>% 
-  filter(seqlen >= median(seqlen) - length.var && seqlen <= median(seqlen) + length.var) %>%
-  select(-Sequence)
-
-
+  mutate(FilteredSequence = str_remove_all(Sequence, "^N+|N+$|-")) %>%
+  filter(str_count(FilteredSequence, "N") <= (missing.data * str_count(Sequence))) %>%
+  filter(str_count(FilteredSequence) >= median(str_count(FilteredSequence)) - length.var & str_count(FilteredSequence) <= median(str_count(FilteredSequence)) + length.var) %>%
+  select(-"Sequence")
 gene2_df <- gene2_df %>%
   filter(!is.na(Sequence)) %>%
-  mutate(FilteredSequence = str_remove_all(Sequence, "^N+|N+$|-"),
-         seqlen = length(FilteredSequence)) %>%
-  filter(str_count(FilteredSequence, "N") <= (missing.data*seqlen)) %>% 
-  filter(seqlen >= median(seqlen) - length.var &&
-           seqlen <= median(seqlen) + length.var) %>%
-  select(-Sequence)
+  mutate(FilteredSequence = str_remove_all(Sequence, "^N+|N+$|-")) %>%
+  filter(str_count(FilteredSequence, "N") <= (missing.data * str_count(Sequence))) %>%
+  filter(str_count(FilteredSequence) >= median(str_count(FilteredSequence)) - length.var & str_count(FilteredSequence) <= median(str_count(FilteredSequence)) + length.var) %>%
+   select(-"Sequence")
+
+#Convert Sequence to DNAStringSet format
+gene1_df$FilteredSequence <- DNAStringSet(gene1_df$FilteredSequence)
+gene2_df$FilteredSequence <- DNAStringSet(gene2_df$FilteredSequence)
 
 #Add name identifiers to sequences
 names(gene1_df$FilteredSequence) <- gene1_df$ID
 names(gene2_df$FilteredSequence) <- gene2_df$ID
 ```
-
-
-
 #### Checks\
 Ensure data processing has been executed as intended.
-
 ```{r Checks 1}
 #Verify data structure is as expected. Ensure variables set above are logical.
 
@@ -254,42 +255,29 @@ unique(gene2_df$Species)
 #Look for presence of obvious outliers
 sprintf("%s data structure:", gene1)
 summary(nchar(gene1_df$FilteredSequence)) 
-
-hist(x = nchar(gene1_df$FilteredSequence), 
-     main = sprintf("%s Sequence Length", gene1), 
-     xlab = "Sequence Length (Nucleotides)",
-     ylab = "Number of Sequences", breaks=10) 
-
+hist((nchar(gene1_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene1), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences") 
 sprintf("%s data structure:", gene2)
 summary(nchar(gene2_df$FilteredSequence)) 
-
-hist(nchar(as.character(gene2_df$FilteredSequence)),
-     main = sprintf("%s Sequence Length", gene2),
-     xlab = "Sequence Length (Nucleotides)",
-     ylab = "Number of Sequences",
-     breaks = 5)
-
+hist((nchar(gene2_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene2), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences")
 ```
 
 #### Alignment\
 Align all sequences for Gene1 and Gene2, separately. 
 ```{r Align, results = "hide"}
-
-#Convert Sequence to DNAStringSet format
-gene1_df$FilteredSequence <- DNAStringSet(gene1_df$FilteredSequence)
-gene2_df$FilteredSequence <- DNAStringSet(gene2_df$FilteredSequence)
-
 #Align sequences
 gene1_align <- DNAStringSet(muscle::muscle(gene1_df$FilteredSequence))
 gene2_align <- DNAStringSet(muscle::muscle(gene2_df$FilteredSequence))
 
 #Export alignment to named FASTA file
+
 writeXStringSet(gene1_align, file = sprintf("%s_alignment.fas", gene1), format = "fasta")
 writeXStringSet(gene2_align, file = sprintf("%s_alignment.fas", gene2), format = "fasta")
 
 #View alignment in browser for QC
-BrowseSeqs(gene1_align)
-BrowseSeqs(gene2_align)
+if (params$showalignments) {
+  BrowseSeqs(gene1_align)
+  BrowseSeqs(gene2_align)
+}
 ```
 
 #### Cluster\
@@ -318,14 +306,21 @@ gene2_gg <- as.dendrogram(gene2_clusters[[2]])
 
 #Plot dendrograms
 ggdendrogram(gene1_gg) +
-  labs(title = sprintf("%s Dendrogram", gene1), x = "NCBI Accession #", y = "Distance between clusters")
+  labs(title = sprintf("%s Dendrogram:", gene1),
+       subtitle = paste('Method:', clustering.method, 
+                        '\nThreshold', clustering.threshold),
+       x = "NCBI Accession #", y = "Distance between clusters")
 ggdendrogram(gene2_gg) +
-  labs(title = sprintf("%s Dendrogram", gene2), x = "NCBI Accession #", y = "Distance between clusters")
+  labs(title = sprintf("%s Dendrogram", gene2),
+       subtitle = paste('Method:', clustering.method, 
+                        '\nThreshold', clustering.threshold),
+       x = "NCBI Accession #", y = "Distance between clusters")
 
 #Compute the number of clusters identified for each gene
 sprintf("%s sequences form %.0f cluster(s).", gene1, length(unique(unlist(gene1_clusters[[1]][1]))))
 sprintf("%s sequences form %.0f cluster(s).", gene2, length(unique(unlist(gene2_clusters[[1]][1]))))
 ```
+
 
 View which clusters species were assigned to.
 ```{r Cluster Assignment, results = "hold"}
@@ -401,8 +396,3 @@ Matching a word after another word in r regex. Stack Overflow: https://stackover
 Reformat R Source code. Bookdown: https://bookdown.org/yihui/rmarkdown-cookbook/opts-tidy.html
 
 Use sprintf to format floats with no decimal places if integer. Stack Overflow: https://stackoverflow.com/questions/14499579/use-sprintf-to-format-floats-with-no-decimal-places-if-integer
-
-```{r}
-
-```
-

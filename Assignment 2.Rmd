@@ -71,6 +71,7 @@ gene2_search <- entrez_search(db = "nuccore", term = searchTermGene2, retmax = 1
 
 #Prepare data for analysis
 gene1_fetch <- entrez_fetch(db = "nuccore", id = gene1_search$ids, rettype = "fasta")
+Sys.sleep(2)
 gene2_fetch <- entrez_fetch(db = "nuccore", id = gene2_search$ids, rettype = "fasta")
 
 #Write to fasta file
