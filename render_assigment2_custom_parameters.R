@@ -1,8 +1,6 @@
 
-# USE this line in to knit Assigment 2 report with custom parameters
-outputfilename <- 'Assignment2_w_params'
+# Run this line to knit Assigment 2 report with custom parameters
 rmarkdown::render(input = "Assignment 2_knit_w_params.Rmd", 
-                  output_file = outputfilename,
+                  output_file = 'Assignment2_w_custom_params',
                   clean = TRUE,
                   params = "ask")
-  

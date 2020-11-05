@@ -84,11 +84,7 @@ params:
     value: TRUE
     input: radio
     choices: [TRUE, FALSE]
-  savefiles:
-    label: "Save fasta files and alignments?"
-    value: TRUE
-    input: radio
-    choices: [TRUE, FALSE]
+
 ---
 
 <!-- USE this line in the console to knit with custom parameters -->
@@ -177,6 +173,11 @@ params
 ```
 
 
+  The TN93 model of molecular evolution was selected as it incorporates different likelihoods for transversions and transitions, even distinguishing between C/T and A/G transitions. This model accepts unbalanced nucleotide abundance, which is important for this analysis as a mitochondrial gene (high CG content) is being compared with a Y chromosome gene (Tamura and Nei, 1993).
+  Single linkage clustering was performed as it permits more disparate group membership, allowing minor sequence variations within species to still be assigned to the same cluster.
+  A within cluster sequence variability threshold of 0.05 was set. Intra-species variability in COI typically ranges from 2-3%, while intra-genus variability is 10-20%, so threshold of 5% should allow for sequences to cluster by species within the same genus.
+  
+
 #### Load and Tidy Data\
 Collect data from NCBI and process it to be suitable for analysis.
 ```{r Data}
@@ -190,14 +191,11 @@ Sys.sleep(2)
 gene2_fetch <- entrez_fetch(db = "nuccore", id = gene2_search$ids, rettype = "fasta")
 
 #Write to fasta file
-if (params$savefiles){
-  write(gene1_fetch, "gene1_fetch.fasta", sep = "\n")
-  write(gene2_fetch, "gene2_fetch.fasta", sep = "\n")
-}
-
-# #Read FASTA as DNA string (Note: can directly load FASTA files here if collected by other means)
-# stringSet1 <- readDNAStringSet("gene1_fetch.fasta")
-# stringSet2 <- readDNAStringSet("gene2_fetch.fasta")
+write(gene1_fetch, "gene1_fetch.fasta", sep = "\n")
+write(gene2_fetch, "gene2_fetch.fasta", sep = "\n")
+#Read FASTA as DNA string (Note: can directly load FASTA files here if collected by other means)
+stringSet1 <- readDNAStringSet("gene1_fetch.fasta")
+stringSet2 <- readDNAStringSet("gene2_fetch.fasta")
 
 #Format DNA string as dataframe
 gene1_df <- data.frame(Name = names(stringSet1), Sequence = paste(stringSet1))
@@ -271,10 +269,9 @@ gene1_align <- DNAStringSet(muscle::muscle(gene1_df$FilteredSequence))
 gene2_align <- DNAStringSet(muscle::muscle(gene2_df$FilteredSequence))
 
 #Export alignment to named FASTA file
-if (params$savefiles){
-  writeXStringSet(gene1_align, file = sprintf("%s_alignment.fas", gene1), format = "fasta")
-  writeXStringSet(gene2_align, file = sprintf("%s_alignment.fas", gene2), format = "fasta")
-}
+
+writeXStringSet(gene1_align, file = sprintf("%s_alignment.fas", gene1), format = "fasta")
+writeXStringSet(gene2_align, file = sprintf("%s_alignment.fas", gene2), format = "fasta")
 
 #View alignment in browser for QC
 if (params$showalignments) {
