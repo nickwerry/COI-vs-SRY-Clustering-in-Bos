@@ -4,5 +4,9 @@
 .Ruserdata
 *.fasta
 *.fas
+*.pdf
+*.html
 /Assignment-2_knit_w_params_files
-Assignment 2_knit_w_params.nb.html
+Assignment-2_knit_w_params.nb.html
+
+

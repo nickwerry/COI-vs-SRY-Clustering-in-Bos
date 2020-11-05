@@ -2,7 +2,7 @@
 title: "6210 Assignment 2"
 author: "Nick Werry (with collaboration from Jason Moggridge)"
 date: "21/10/2020"
-output: html_notebook
+output: pdf_document
 params:
   gene1:
     label: "Select Gene 1 (as long as it's COI)"
@@ -84,9 +84,15 @@ params:
     value: TRUE
     input: radio
     choices: [TRUE, FALSE]
+  savefiles:
+    label: "Save fasta files and alignments?"
+    value: TRUE
+    input: radio
+    choices: [TRUE, FALSE]
 ---
 
-
+<!-- USE this line in the console to knit with custom parameters -->
+<!-- rmarkdown::render("Assignment 2_knit_w_params.Rmd", params = "ask") -->
 
 ## Setup
 
@@ -94,7 +100,9 @@ params:
 library(knitr)
 
 # install any dependencies that user is missing
-depends_on <- c("formatR", 'Biostrings', 'tidyverse', 'rentrez', 'muscle', 'DECIPHER', 'ape', 'dendextend', 'ggplot2', 'ggdendro')
+depends_on <- c("formatR", 'Biostrings', 'tidyverse', 
+                'rentrez', 'muscle', 'DECIPHER', 'ape',
+                'dendextend', 'ggplot2', 'ggdendro')
 new.packages <- depends_on[!(depends_on %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 
@@ -182,12 +190,14 @@ Sys.sleep(2)
 gene2_fetch <- entrez_fetch(db = "nuccore", id = gene2_search$ids, rettype = "fasta")
 
 #Write to fasta file
-write(gene1_fetch, "gene1_fetch.fasta", sep = "\n")
-write(gene2_fetch, "gene2_fetch.fasta", sep = "\n")
+if (params$savefiles){
+  write(gene1_fetch, "gene1_fetch.fasta", sep = "\n")
+  write(gene2_fetch, "gene2_fetch.fasta", sep = "\n")
+}
 
-#Read FASTA as DNA string (Note: can directly load FASTA files here if collected by other means)
-stringSet1 <- readDNAStringSet("gene1_fetch.fasta")
-stringSet2 <- readDNAStringSet("gene2_fetch.fasta")
+# #Read FASTA as DNA string (Note: can directly load FASTA files here if collected by other means)
+# stringSet1 <- readDNAStringSet("gene1_fetch.fasta")
+# stringSet2 <- readDNAStringSet("gene2_fetch.fasta")
 
 #Format DNA string as dataframe
 gene1_df <- data.frame(Name = names(stringSet1), Sequence = paste(stringSet1))
@@ -261,8 +271,10 @@ gene1_align <- DNAStringSet(muscle::muscle(gene1_df$FilteredSequence))
 gene2_align <- DNAStringSet(muscle::muscle(gene2_df$FilteredSequence))
 
 #Export alignment to named FASTA file
-writeXStringSet(gene1_align, file = sprintf("%s_alignment.fas", gene1), format = "fasta")
-writeXStringSet(gene2_align, file = sprintf("%s_alignment.fas", gene2), format = "fasta")
+if (params$savefiles){
+  writeXStringSet(gene1_align, file = sprintf("%s_alignment.fas", gene1), format = "fasta")
+  writeXStringSet(gene2_align, file = sprintf("%s_alignment.fas", gene2), format = "fasta")
+}
 
 #View alignment in browser for QC
 if (params$showalignments) {
