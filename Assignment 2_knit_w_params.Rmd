@@ -1,6 +1,8 @@
 ---
-title: My Document
-output: html_document
+title: "6210 Assignment 2"
+author: "Nick Werry (with collaboration from Jason Moggridge)"
+date: "21/10/2020"
+output: html_notebook
 params:
   gene1:
     label: "Select Gene 1 (as long as it's COI)"
@@ -64,7 +66,7 @@ params:
     label: "Model of molecular evolution:"
     value: TN93
     input: select
-    choices: [raw, N, TS, TV, JC69, K80, F81, K81, F84, BH87, T92, TN93, GG95, logdet, paralin, indel, indelblock]
+    choices: [raw, JC69, K80, F81, K81, F84, BH87, T92, TN93, GG95, logdet, paralin, indel, indelblock]
   clustermethod:
     label: "Clustering algorithm"
     value: single
@@ -150,6 +152,8 @@ clustering.method <- params$clustermethod
 # clustering.threshold <- 0.05
 clustering.threshold <- params$clusterthreshold
 
+print('selected parameters for analysis:')
+params
 ```
 
 
