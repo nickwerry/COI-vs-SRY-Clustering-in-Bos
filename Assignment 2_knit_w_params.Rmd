@@ -1,14 +1,108 @@
-#Hello :)
 ---
 title: "6210 Assignment 2"
-author: "Nick Werry"
+author: "Nick Werry (with collaboration from Jason Moggridge)"
 date: "21/10/2020"
 output: pdf_document
+params:
+  gene1:
+    label: "Select Gene 1 (as long as it's COI)"
+    value: COI
+    input: radio
+    choices: [COI]
+  lowerlen1:
+    label: "Gene1: Lower Sequence length"
+    value: 550
+    input: slider
+    min: 50
+    max: 9000
+    step: 10
+    sep: ""
+  upperlen1:
+    label: "Gene1: Max. Sequence length"
+    value: 695
+    input: slider
+    min: 200
+    max: 10000
+    step: 10
+    sep: ""
+  gene2:
+    label: "Select Gene 2 (as long as it's SRY)"
+    value: SRY
+    input: radio
+    choices: [SRY]
+  lowerlen2:
+    label: "Gene2: Lower Sequence length"
+    value: 1300
+    input: slider
+    min: 50
+    max: 9000
+    step: 50
+    sep: ""
+  upperlen2:
+    label: "Gene2: Max. Sequence length"
+    value: 1500
+    input: slider
+    min: 200
+    max: 10000
+    step: 50
+    sep: ""
+  lenvar:
+    label: "Length variance from mean tolerated"
+    value: 50
+    input: slider
+    min: 25
+    max: 10000
+    step: 5
+    sep: ""
+  missing:
+    label: "Missing data tolerance"
+    value: 0.05
+    input: slider
+    min: 0
+    max: 0.2
+    step: 0.005
+    sep: ""
+  distmodel:
+    label: "Model of molecular evolution:"
+    value: TN93
+    input: select
+    choices: [raw, JC69, K80, F81, K81, F84, BH87, T92, TN93, GG95, logdet, paralin, indel, indelblock]
+  clustermethod:
+    label: "Clustering algorithm"
+    value: single
+    input: select
+    choices: [complete, single, UPGMA, WPGMA, NJ, ML, inexact]
+  clusterthreshold:
+    label: "Cluster threshold"
+    value: 0.05
+    input: slider
+    min: 0.01
+    max: 0.2
+    step: 0.01
+  showalignments:
+    label: "Show alignments in browser?"
+    value: TRUE
+    input: radio
+    choices: [TRUE, FALSE]
+
 ---
+
+<!-- USE this line in the console to knit with custom parameters -->
+<!-- rmarkdown::render("Assignment 2_knit_w_params.Rmd", params = "ask") -->
+
 ## Setup
+
 ```{r setup}
 library(knitr)
-opts_chunk$set(tidy = TRUE)
+
+# install any dependencies that user is missing
+depends_on <- c("formatR", 'Biostrings', 'tidyverse', 
+                'rentrez', 'muscle', 'DECIPHER', 'ape',
+                'dendextend', 'ggplot2', 'ggdendro')
+new.packages <- depends_on[!(depends_on %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+opts_chunk$set(tidy = TRUE, cache=FALSE)
 ```
 
 ## Introduction\
@@ -32,37 +126,58 @@ library(dendextend)
 library(ggplot2)
 library(ggdendro)
 ```
+
+
 #### Variables\
 To allow this codeset to be easily adapted for other genes and conditions, commonly adjusted variables are included within this section.
-```{r Variables}
+```{r Parameters}
 #Define genes
-gene1 <- "COI"
-gene2 <- "SRY"
+# gene1 <- 'COI'
+# gene2 <- "SRY"
+gene1 <- params$gene1
+max1 <- params$upperlen1
+min1 <- params$lowerlen1
+
+gene2 <- params$gene2
+max2 <- params$upperlen2
+min2 <- params$lowerlen2
 
 #Adjust search conditions for each gene
-searchTermGene1 <- sprintf("Bos[ORGN] AND %s[GENE]) AND 550:695[SLEN] NOT (genome[TITL]", gene1)
-searchTermGene2 <- sprintf("Bos[ORGN] AND %s[GENE]) AND 1300:1500[SLEN] NOT (genome[TITL]", gene2) 
+# searchTermGene1 <- sprintf("Bos[ORGN] AND %s[GENE]) AND 550:695[SLEN] NOT (genome[TITL]", gene1)
+searchTermGene1 <- sprintf("Bos[ORGN] AND %s[GENE]) AND %s:%s[SLEN] NOT (genome[TITL])", gene1, min1, max1)
+searchTermGene2 <- sprintf("Bos[ORGN] AND %s[GENE]) AND %s:%s[SLEN] NOT (genome[TITL])", gene2, min2, max2)
 
 ##Parameters
 #Tolerate X% "N"s in sequence
-missing.data <- 0.05
+# missing.data <- 0.05
+missing.data <- params$missing
 
 #Limit length of sequence to within X nucleotides of median
-length.var <- 50
+# length.var <- 50
+length.var <- params$lenvar
 
 #Define model of molecular evolution
-chosen.model <- "TN93"
+# chosen.model <- "TN93"
+chosen.model <- params$distmodel
 
 #Define clustering method
-clustering.method <- "single"
+# clustering.method <- "single"
+clustering.method <- params$clustermethod
 
 #Accept X% sequence variability within a cluster
-clustering.threshold <- 0.05
+# clustering.threshold <- 0.05
+clustering.threshold <- params$clusterthreshold
+
+print('selected parameters for analysis:')
+params
 ```
+
+
   The TN93 model of molecular evolution was selected as it incorporates different likelihoods for transversions and transitions, even distinguishing between C/T and A/G transitions. This model accepts unbalanced nucleotide abundance, which is important for this analysis as a mitochondrial gene (high CG content) is being compared with a Y chromosome gene (Tamura and Nei, 1993).
   Single linkage clustering was performed as it permits more disparate group membership, allowing minor sequence variations within species to still be assigned to the same cluster.
   A within cluster sequence variability threshold of 0.05 was set. Intra-species variability in COI typically ranges from 2-3%, while intra-genus variability is 10-20%, so threshold of 5% should allow for sequences to cluster by species within the same genus.
   
+
 #### Load and Tidy Data\
 Collect data from NCBI and process it to be suitable for analysis.
 ```{r Data}
@@ -78,7 +193,6 @@ gene2_fetch <- entrez_fetch(db = "nuccore", id = gene2_search$ids, rettype = "fa
 #Write to fasta file
 write(gene1_fetch, "gene1_fetch.fasta", sep = "\n")
 write(gene2_fetch, "gene2_fetch.fasta", sep = "\n")
-
 #Read FASTA as DNA string (Note: can directly load FASTA files here if collected by other means)
 stringSet1 <- readDNAStringSet("gene1_fetch.fasta")
 stringSet2 <- readDNAStringSet("gene2_fetch.fasta")
@@ -155,12 +269,15 @@ gene1_align <- DNAStringSet(muscle::muscle(gene1_df$FilteredSequence))
 gene2_align <- DNAStringSet(muscle::muscle(gene2_df$FilteredSequence))
 
 #Export alignment to named FASTA file
+
 writeXStringSet(gene1_align, file = sprintf("%s_alignment.fas", gene1), format = "fasta")
 writeXStringSet(gene2_align, file = sprintf("%s_alignment.fas", gene2), format = "fasta")
 
 #View alignment in browser for QC
-BrowseSeqs(gene1_align)
-BrowseSeqs(gene2_align)
+if (params$showalignments) {
+  BrowseSeqs(gene1_align)
+  BrowseSeqs(gene2_align)
+}
 ```
 
 #### Cluster\
@@ -189,14 +306,21 @@ gene2_gg <- as.dendrogram(gene2_clusters[[2]])
 
 #Plot dendrograms
 ggdendrogram(gene1_gg) +
-  labs(title = sprintf("%s Dendrogram", gene1), x = "NCBI Accession #", y = "Distance between clusters")
+  labs(title = sprintf("%s Dendrogram:", gene1),
+       subtitle = paste('Method:', clustering.method, 
+                        '\nThreshold', clustering.threshold),
+       x = "NCBI Accession #", y = "Distance between clusters")
 ggdendrogram(gene2_gg) +
-  labs(title = sprintf("%s Dendrogram", gene2), x = "NCBI Accession #", y = "Distance between clusters")
+  labs(title = sprintf("%s Dendrogram", gene2),
+       subtitle = paste('Method:', clustering.method, 
+                        '\nThreshold', clustering.threshold),
+       x = "NCBI Accession #", y = "Distance between clusters")
 
 #Compute the number of clusters identified for each gene
 sprintf("%s sequences form %.0f cluster(s).", gene1, length(unique(unlist(gene1_clusters[[1]][1]))))
 sprintf("%s sequences form %.0f cluster(s).", gene2, length(unique(unlist(gene2_clusters[[1]][1]))))
 ```
+
 
 View which clusters species were assigned to.
 ```{r Cluster Assignment, results = "hold"}
