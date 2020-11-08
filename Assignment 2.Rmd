@@ -1,4 +1,3 @@
-#Hello :)
 ---
 title: "6210 Assignment 2"
 author: "Nick Werry"
