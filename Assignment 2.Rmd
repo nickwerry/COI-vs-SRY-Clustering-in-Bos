@@ -3,11 +3,105 @@ title: "6210 Assignment 2"
 author: "Nick Werry"
 date: "21/10/2020"
 output: pdf_document
+params:
+  gene1:
+    label: "Select Gene 1 (as long as it's COI)"
+    value: COI
+    input: radio
+    choices: [COI]
+  lowerlen1:
+    label: "Gene1: Lower Sequence length"
+    value: 550
+    input: slider
+    min: 50
+    max: 9000
+    step: 10
+    sep: ""
+  upperlen1:
+    label: "Gene1: Max. Sequence length"
+    value: 695
+    input: slider
+    min: 200
+    max: 10000
+    step: 10
+    sep: ""
+  gene2:
+    label: "Select Gene 2 (as long as it's SRY)"
+    value: SRY
+    input: radio
+    choices: [SRY]
+  lowerlen2:
+    label: "Gene2: Lower Sequence length"
+    value: 1300
+    input: slider
+    min: 50
+    max: 9000
+    step: 50
+    sep: ""
+  upperlen2:
+    label: "Gene2: Max. Sequence length"
+    value: 1500
+    input: slider
+    min: 200
+    max: 10000
+    step: 50
+    sep: ""
+  lenvar:
+    label: "Length variance from mean tolerated"
+    value: 50
+    input: slider
+    min: 25
+    max: 10000
+    step: 5
+    sep: ""
+  missing:
+    label: "Missing data tolerance"
+    value: 0.05
+    input: slider
+    min: 0
+    max: 0.2
+    step: 0.005
+    sep: ""
+  distmodel:
+    label: "Model of molecular evolution:"
+    value: TN93
+    input: select
+    choices: [raw, JC69, K80, F81, K81, F84, BH87, T92, TN93, GG95, logdet, paralin, indel, indelblock]
+  clustermethod:
+    label: "Clustering algorithm"
+    value: single
+    input: select
+    choices: [complete, single, UPGMA, WPGMA, NJ, ML, inexact]
+  clusterthreshold:
+    label: "Cluster threshold"
+    value: 0.05
+    input: slider
+    min: 0.01
+    max: 0.2
+    step: 0.01
+  showalignments:
+    label: "Show alignments in browser?"
+    value: TRUE
+    input: radio
+    choices: [TRUE, FALSE]
+
+---
+
+<!-- USE this line in the console to knit with custom parameters -->
+<!-- rmarkdown::render("Assignment 2_knit_w_params.Rmd", params = "ask") -->
 ---
 ## Setup
 ```{r setup}
 library(knitr)
-opts_chunk$set(tidy = TRUE)
+
+# install any dependencies that user is missing
+depends_on <- c("formatR", 'Biostrings', 'tidyverse', 
+                'rentrez', 'muscle', 'DECIPHER', 'ape',
+                'dendextend', 'ggplot2', 'ggdendro','cluster','factoextra')
+new.packages <- depends_on[!(depends_on %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+opts_chunk$set(tidy = TRUE, cache=FALSE)
 ```
 
 ## Introduction\
