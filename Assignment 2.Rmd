@@ -1,14 +1,106 @@
-#Hello :)
 ---
 title: "6210 Assignment 2"
 author: "Nick Werry"
 date: "21/10/2020"
 output: pdf_document
+params:
+  gene1:
+    label: "Select Gene 1 (as long as it's COI)"
+    value: COI
+    input: radio
+    choices: [COI]
+  lowerlen1:
+    label: "Gene1: Lower Sequence length"
+    value: 550
+    input: slider
+    min: 50
+    max: 9000
+    step: 10
+    sep: ""
+  upperlen1:
+    label: "Gene1: Max. Sequence length"
+    value: 695
+    input: slider
+    min: 200
+    max: 10000
+    step: 10
+    sep: ""
+  gene2:
+    label: "Select Gene 2 (as long as it's SRY)"
+    value: SRY
+    input: radio
+    choices: [SRY]
+  lowerlen2:
+    label: "Gene2: Lower Sequence length"
+    value: 1300
+    input: slider
+    min: 50
+    max: 9000
+    step: 50
+    sep: ""
+  upperlen2:
+    label: "Gene2: Max. Sequence length"
+    value: 1500
+    input: slider
+    min: 200
+    max: 10000
+    step: 50
+    sep: ""
+  lenvar:
+    label: "Length variance from mean tolerated"
+    value: 50
+    input: slider
+    min: 25
+    max: 10000
+    step: 5
+    sep: ""
+  missing:
+    label: "Missing data tolerance"
+    value: 0.05
+    input: slider
+    min: 0
+    max: 0.2
+    step: 0.005
+    sep: ""
+  distmodel:
+    label: "Model of molecular evolution:"
+    value: TN93
+    input: select
+    choices: [raw, JC69, K80, F81, K81, F84, BH87, T92, TN93, GG95, logdet, paralin, indel, indelblock]
+  clustermethod:
+    label: "Clustering algorithm"
+    value: single
+    input: select
+    choices: [complete, single, UPGMA, WPGMA, NJ, ML, inexact]
+  clusterthreshold:
+    label: "Cluster threshold"
+    value: 0.05
+    input: slider
+    min: 0.01
+    max: 0.2
+    step: 0.01
+  showalignments:
+    label: "Show alignments in browser?"
+    value: TRUE
+    input: radio
+    choices: [TRUE, FALSE]
+
+---
+<!-- USE this line in the console to knit with custom parameters -->
+<!-- rmarkdown::render("Assignment 2.Rmd", params = "ask") -->
 ---
 ## Setup
 ```{r setup}
 library(knitr)
-opts_chunk$set(tidy = TRUE)
+
+# install any dependencies that user is missing
+depends_on <- c("formatR", 'Biostrings', 'tidyverse', 
+                'rentrez', 'muscle', 'DECIPHER', 'ape',
+                'dendextend', 'ggplot2', 'ggdendro','cluster','factoextra')
+new.packages <- depends_on[!(depends_on %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+opts_chunk$set(tidy = TRUE, cache=FALSE)
 ```
 
 ## Introduction\
@@ -31,7 +123,10 @@ library(ape)
 library(dendextend)
 library(ggplot2)
 library(ggdendro)
+library(cluster)
+library(factoextra)
 ```
+
 #### Variables\
 To allow this codeset to be easily adapted for other genes and conditions, commonly adjusted variables are included within this section.
 ```{r Variables}
@@ -62,7 +157,7 @@ clustering.threshold <- 0.05
   The TN93 model of molecular evolution was selected as it incorporates different likelihoods for transversions and transitions, even distinguishing between C/T and A/G transitions. This model accepts unbalanced nucleotide abundance, which is important for this analysis as a mitochondrial gene (high CG content) is being compared with a Y chromosome gene (Tamura and Nei, 1993).
   Single linkage clustering was performed as it permits more disparate group membership, allowing minor sequence variations within species to still be assigned to the same cluster.
   A within cluster sequence variability threshold of 0.05 was set. Intra-species variability in COI typically ranges from 2-3%, while intra-genus variability is 10-20%, so threshold of 5% should allow for sequences to cluster by species within the same genus.
-  
+
 #### Load and Tidy Data\
 Collect data from NCBI and process it to be suitable for analysis.
 ```{r Data}
@@ -72,7 +167,7 @@ gene2_search <- entrez_search(db = "nuccore", term = searchTermGene2, retmax = 1
 
 #Prepare data for analysis
 gene1_fetch <- entrez_fetch(db = "nuccore", id = gene1_search$ids, rettype = "fasta")
-Sys.sleep(2)
+Sys.sleep(5)
 gene2_fetch <- entrez_fetch(db = "nuccore", id = gene2_search$ids, rettype = "fasta")
 
 #Write to fasta file
@@ -125,6 +220,7 @@ gene2_df$FilteredSequence <- DNAStringSet(gene2_df$FilteredSequence)
 names(gene1_df$FilteredSequence) <- gene1_df$ID
 names(gene2_df$FilteredSequence) <- gene2_df$ID
 ```
+
 #### Checks\
 Ensure data processing has been executed as intended.
 ```{r Checks 1}
@@ -141,10 +237,19 @@ unique(gene2_df$Species)
 #Look for presence of obvious outliers
 sprintf("%s data structure:", gene1)
 summary(nchar(gene1_df$FilteredSequence)) 
-hist((nchar(gene1_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene1), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences") 
+hist((nchar(gene1_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene1), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences",col="orange") 
 sprintf("%s data structure:", gene2)
 summary(nchar(gene2_df$FilteredSequence)) 
-hist((nchar(gene2_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene2), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences")
+hist((nchar(gene2_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene2), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences",breaks=seq(0,2000, by = 200),col=4)
+boxplot((nchar(gene1_df$FilteredSequence)),
+        (nchar(gene2_df$FilteredSequence)),
+        names=c(sprintf("%s", gene1),sprintf("%s",gene2)),
+        col=c("orange","yellow"),
+        main= sprintf("Distribution of %s and %s Sequence Length", gene1, gene2),
+        ylab="Gene",
+        xlab="Sequence Length",
+        horizontal=TRUE
+)
 ```
 
 #### Alignment\
@@ -198,25 +303,34 @@ sprintf("%s sequences form %.0f cluster(s).", gene1, length(unique(unlist(gene1_
 sprintf("%s sequences form %.0f cluster(s).", gene2, length(unique(unlist(gene2_clusters[[1]][1]))))
 ```
 
-View which clusters species were assigned to.
-```{r Cluster Assignment, results = "hold"}
-#Convert clusters to datafames with cluster and ID columns.
-gene1_dfCluster <- as.data.frame(gene1_clusters[1]) %>%
-  mutate(ID = row.names(as.data.frame(gene1_clusters[1])))
-gene2_dfCluster <- as.data.frame(gene2_clusters[1]) %>%
-  mutate(ID = row.names(as.data.frame(gene2_clusters[1])))
+View the number of each species assigned to each cluster.
+```{r Cluster Assignment, results = "hold"} 
 
-#Merge species names and assigned cluster to a single dataframe, filter for unique combinations
-gene1_dfSpeciesCluster <- merge(gene1_dfCluster, gene1_df, by = "ID") %>%
-  select("Species","cluster") %>%
-  group_by(cluster, Species) %>%
-  filter(row_number() == 1)
-gene2_dfSpeciesCluster <- merge(gene2_dfCluster, gene2_df, by = "ID") %>%
-  select("Species","cluster") %>%
-  group_by(cluster, Species) %>%
-  filter(row_number() == 1)
+#Create Simple function to obtain counts per species per cluster
+count.species.clusters <- function(gene.clusters, gene.df) {
+#where gene.clusters is the output from IdClusters() and gene.df is the filtered dataframe containing columns for Species, ID, and FilteredSequence
+  
+#Convert filtered sequences to dataframe
+gene.df$FilteredSequence<-as.data.frame(gene.df$FilteredSequence)
 
-#Output species and cluster combinations
+#Convert clusters to dataframe and compute new column, ID, populated by the row names clusters dataframe
+cluster.df <- as.data.frame(gene.clusters[1]) %>%
+  mutate(ID = row.names(as.data.frame(gene.clusters[1])))
+
+#To the cluster dataframe, add columns from gene.df by ID, group by cluster and species, summarize the count per group, and arrange in clusters by descending order
+  df <- cluster.df %>%
+left_join(gene.df, by ='ID') %>%
+group_by(cluster, Species) %>%
+summarize(count = n()) %>%
+arrange(cluster, desc(count))
+return(df)
+}
+
+#Compute count per species per cluster
+gene1_dfSpeciesCluster <- count.species.clusters(gene1_clusters,gene1_df)
+gene2_dfSpeciesCluster <- count.species.clusters(gene2_clusters,gene2_df)
+
+#Output count per species per cluster
 sprintf("%s species cluster assignments",gene1)
 gene1_dfSpeciesCluster
 sprintf("%s species cluster assignments",gene2)
@@ -236,6 +350,23 @@ sprintf("%s has a grouping factor of %.2f.", gene1, gene1_SC)
 sprintf("%s has a grouping factor of %.2f.", gene2, gene2_SC)
 ```
 To compare how COI and SRY clustering differed, the above "grouping factors" were calculated. These scores take the ratio of species per cluster, then divide by the number of species observed as a means of normalizing the ratio to account for groups with a different number of species. Grouping factor reflects cohesion within the population: a score of 1 indicates that all species belong to the same cluster, while decreasing scores reflects the presence of additional clusters. Given that the grouping factor of COI (0.25) is much lower than that of SRY (1.0), it is apparent that the investigated SRY sequences cluster more closely to each other than the COI sequences do. This result supports the hypothesis that SRY sequences will have less variation than COI.
+
+#### Silhouette\
+Calculate silhouette index to evaluate internal validity
+```{r Silhouette Index, results = "hold"} 
+
+#Silhouette for gene1
+silhouette_gene1 <- silhouette (unlist(gene1_clusters[[1]]),dmatrix = gene1_matrix)
+summary.silhouette_gene1<-summary(silhouette_gene1)
+summary.silhouette_gene1
+#Note: k is number of clusters, n is number of observations to be partitioned into clusters. silhouette statistics are only defined for 2 <= k <= n-1. For gene 1, k=1, and n=40. For gene 2,k=4 and n=48.
+```
+
+Plot Silhouette Analysis
+```{r Silhouette Plot, results = "hold"}
+#Plot silhouette scores for gene1
+fviz_silhouette(silhouette_gene1, label=FALSE,print.summary=TRUE,xlab="Cluster",main=sprintf("Silhouette Analysis for Clustering on %s Nucleotide Sequences", gene1),submain=sprintf("Clustering Method: %s; Model of DNA Evolution: %s",clustering.method,chosen.model),palette=c("#660000","purple","orange","blue"))
+```
 
 ## Discussion\
 COI is known to tolerate acceptable levels of variation that are used to predict species (Pentinsaari et al. 2016), while SRY is more resistant to nucleotide changes (Cheng et al. 2001). It is logical that this tendency would impact how these sequences cluster, as the difference in selection pressure causes the genes to change at different rates over evolutionary time. Though the TN93 model used in this study compensates for many molecular-level traits, it does not factor in differences in selection pressure for specific genes (Tamura and Nei, 1993). Thus, clustering conditions which distinguish multiple clusters from COI sequence are not sensitive enough to separate SRY sequences from the same genus into more than one cluster, as SRY has not accumulated as many substitutions while the genus diverged.
