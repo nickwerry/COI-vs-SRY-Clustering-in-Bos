@@ -210,43 +210,38 @@ sprintf("%s sequences form %.0f cluster(s).", gene1, length(unique(unlist(gene1_
 sprintf("%s sequences form %.0f cluster(s).", gene2, length(unique(unlist(gene2_clusters[[1]][1]))))
 ```
 
-View which clusters species were assigned to.
-```{r Cluster Assignment, results = "hold"}
-#Convert clusters to datafames with cluster and ID columns.
-gene1_dfCluster <- as.data.frame(gene1_clusters[1]) %>%
-  mutate(ID = row.names(as.data.frame(gene1_clusters[1])))
-gene2_dfCluster <- as.data.frame(gene2_clusters[1]) %>%
-  mutate(ID = row.names(as.data.frame(gene2_clusters[1])))
+View which number of each species assigned to each cluster.
+```{r Cluster Assignment, results = "hold"} 
 
-#Merge species names and assigned cluster to a single dataframe, filter for unique combinations
-gene1_dfSpeciesCluster <- merge(gene1_dfCluster, gene1_df, by = "ID") %>%
-  select("Species","cluster") %>%
-  group_by(cluster, Species) %>%
-  filter(row_number() == 1)
-gene2_dfSpeciesCluster <- merge(gene2_dfCluster, gene2_df, by = "ID") %>%
-  select("Species","cluster") %>%
-  group_by(cluster, Species) %>%
-  filter(row_number() == 1)
+#Create Simple function to obtain counts per species per cluster
+count.species.clusters <- function(gene.clusters, gene.df) {
+#where gene.clusters is the output from IdClusters() and gene.df is the filtered dataframe containing columns for Species, ID, and FilteredSequence
+  
+#Convert filtered sequences to dataframe
+gene.df$FilteredSequence<-as.data.frame(gene.df$FilteredSequence)
 
-#Output species and cluster combinations
+#Convert clusters to dataframe and compute new column, ID, populated by the row names clusters dataframe
+cluster.df <- as.data.frame(gene.clusters[1]) %>%
+  mutate(ID = row.names(as.data.frame(gene.clusters[1])))
+
+#To the cluster dataframe, add columns from gene.df by ID, group by cluster and species, summarize the count per group, and arrange in clusters by descending order
+  df <- cluster.df %>%
+left_join(gene.df, by ='ID') %>%
+group_by(cluster, Species) %>%
+summarize(count = n()) %>%
+arrange(cluster, desc(count))
+return(df)
+}
+
+#Compute count per species per cluster
+gene1_dfSpeciesCluster <- count.species.clusters(gene1_clusters,gene1_df)
+gene2_dfSpeciesCluster <- count.species.clusters(gene2_clusters,gene2_df)
+
+#Output count per species per cluster
 sprintf("%s species cluster assignments",gene1)
 gene1_dfSpeciesCluster
 sprintf("%s species cluster assignments",gene2)
 gene2_dfSpeciesCluster
-```
-
-#### Silhouette\
-Calculate silhouette index to evaluate internal validity
-```{r Silhouette Index, results = "hold"} 
-
-#Silhouette for gene1 as an internal measure of validity. 
-silhouette_gene1 <- silhouette (unlist(gene1_clusters[[1]]),dmatrix = gene1_matrix)
-summary.silhouette_gene1<-summary(silhouette_gene1)
-summary.silhouette_gene1
-#Note: k is number of clusters, n is number of observations to be partitioned into clusters. silhouette statistics are only defined for 2 <= k <= n-1. For gene 1, k=1, and n=40. For gene 2,k=4 and n=48.
-
-#Plot of silhouette scores 
-fviz_silhouette(silhouette_gene1, label=FALSE,print.summary=TRUE,xlab="Cluster",main=sprintf("Silhouette Analysis for Clustering on %s Nucleotide Sequences", gene1),submain=sprintf("Clustering Method: %s; Model of DNA Evolution: %s",clustering.method,chosen.model),palette=c("#660000","purple","orange","blue"))
 ```
 
 ## Results\
@@ -262,6 +257,23 @@ sprintf("%s has a grouping factor of %.2f.", gene1, gene1_SC)
 sprintf("%s has a grouping factor of %.2f.", gene2, gene2_SC)
 ```
 To compare how COI and SRY clustering differed, the above "grouping factors" were calculated. These scores take the ratio of species per cluster, then divide by the number of species observed as a means of normalizing the ratio to account for groups with a different number of species. Grouping factor reflects cohesion within the population: a score of 1 indicates that all species belong to the same cluster, while decreasing scores reflects the presence of additional clusters. Given that the grouping factor of COI (0.25) is much lower than that of SRY (1.0), it is apparent that the investigated SRY sequences cluster more closely to each other than the COI sequences do. This result supports the hypothesis that SRY sequences will have less variation than COI.
+
+#### Silhouette\
+Calculate silhouette index to evaluate internal validity
+```{r Silhouette Index, results = "hold"} 
+
+#Silhouette for gene1
+silhouette_gene1 <- silhouette (unlist(gene1_clusters[[1]]),dmatrix = gene1_matrix)
+summary.silhouette_gene1<-summary(silhouette_gene1)
+summary.silhouette_gene1
+#Note: k is number of clusters, n is number of observations to be partitioned into clusters. silhouette statistics are only defined for 2 <= k <= n-1. For gene 1, k=1, and n=40. For gene 2,k=4 and n=48.
+```
+
+Plot Silhouette Analysis
+```{r Silhouette Plot, results = "hold"}
+#Plot silhouette scores for gene1
+fviz_silhouette(silhouette_gene1, label=FALSE,print.summary=TRUE,xlab="Cluster",main=sprintf("Silhouette Analysis for Clustering on %s Nucleotide Sequences", gene1),submain=sprintf("Clustering Method: %s; Model of DNA Evolution: %s",clustering.method,chosen.model),palette=c("#660000","purple","orange","blue"))
+```
 
 ## Discussion\
 COI is known to tolerate acceptable levels of variation that are used to predict species (Pentinsaari et al. 2016), while SRY is more resistant to nucleotide changes (Cheng et al. 2001). It is logical that this tendency would impact how these sequences cluster, as the difference in selection pressure causes the genes to change at different rates over evolutionary time. Though the TN93 model used in this study compensates for many molecular-level traits, it does not factor in differences in selection pressure for specific genes (Tamura and Nei, 1993). Thus, clustering conditions which distinguish multiple clusters from COI sequence are not sensitive enough to separate SRY sequences from the same genus into more than one cluster, as SRY has not accumulated as many substitutions while the genus diverged.
