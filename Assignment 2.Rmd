@@ -30,8 +30,8 @@ library(ape)
 library(dendextend)
 library(ggplot2)
 library(ggdendro)
-library(cluster) #Added by Kerry, needed for silhouette analysis
-library(factoextra) #Added by Kerry for silhouette plot
+library(cluster)
+library(factoextra)
 ```
 
 #### Variables\
@@ -148,6 +148,15 @@ hist((nchar(gene1_df$FilteredSequence)), main = sprintf("%s Sequence Length", ge
 sprintf("%s data structure:", gene2)
 summary(nchar(gene2_df$FilteredSequence)) 
 hist((nchar(gene2_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene2), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences")
+boxplot((nchar(gene1_df$FilteredSequence)),
+        (nchar(gene2_df$FilteredSequence)),
+        names=c(sprintf("%s", gene1),sprintf("%s",gene2)),
+        col=c("orange","yellow"),
+        main= sprintf("Distribution of %s and %s Sequence Length", gene1, gene2),
+        ylab="Gene",
+        xlab="Sequence Length",
+        horizontal=TRUE
+)
 ```
 
 #### Alignment\
@@ -224,6 +233,20 @@ sprintf("%s species cluster assignments",gene1)
 gene1_dfSpeciesCluster
 sprintf("%s species cluster assignments",gene2)
 gene2_dfSpeciesCluster
+```
+
+#### Silhouette\
+Calculate silhouette index to evaluate internal validity
+```{r Silhouette Index, results = "hold"} 
+
+#Silhouette for gene1 as an internal measure of validity. 
+silhouette_gene1 <- silhouette (unlist(gene1_clusters[[1]]),dmatrix = gene1_matrix)
+summary.silhouette_gene1<-summary(silhouette_gene1)
+summary.silhouette_gene1
+#Note: k is number of clusters, n is number of observations to be partitioned into clusters. silhouette statistics are only defined for 2 <= k <= n-1. For gene 1, k=1, and n=40. For gene 2,k=4 and n=48.
+
+#Plot of silhouette scores 
+fviz_silhouette(silhouette_gene1, label=FALSE,print.summary=TRUE,xlab="Cluster",main=sprintf("Silhouette Analysis for Clustering on %s Nucleotide Sequences", gene1),submain=sprintf("Clustering Method: %s; Model of DNA Evolution: %s",clustering.method,chosen.model),palette=c("#660000","purple","orange","blue"))
 ```
 
 ## Results\
