@@ -86,7 +86,6 @@ params:
     choices: [TRUE, FALSE]
 
 ---
-
 <!-- USE this line in the console to knit with custom parameters -->
 <!-- rmarkdown::render("Assignment 2_knit_w_params.Rmd", params = "ask") -->
 ---
@@ -238,10 +237,10 @@ unique(gene2_df$Species)
 #Look for presence of obvious outliers
 sprintf("%s data structure:", gene1)
 summary(nchar(gene1_df$FilteredSequence)) 
-hist((nchar(gene1_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene1), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences") 
+hist((nchar(gene1_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene1), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences",col="orange") 
 sprintf("%s data structure:", gene2)
 summary(nchar(gene2_df$FilteredSequence)) 
-hist((nchar(gene2_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene2), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences")
+hist((nchar(gene2_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene2), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences",breaks=seq(0,2000, by = 200),col=4)
 boxplot((nchar(gene1_df$FilteredSequence)),
         (nchar(gene2_df$FilteredSequence)),
         names=c(sprintf("%s", gene1),sprintf("%s",gene2)),
