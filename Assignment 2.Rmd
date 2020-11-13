@@ -2,93 +2,121 @@
 title: "6210 Assignment 2"
 author: "Nick Werry"
 date: "21/10/2020"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 params:
   gene1:
-    label: "Select Gene 1 (as long as it's COI)"
-    value: COI
+    label: Select Gene 1 (as long as it's COI)
+    value: COIX
     input: radio
-    choices: [COI]
+    choices: COI
   lowerlen1:
-    label: "Gene1: Lower Sequence length"
+    label: 'Gene1: Lower Sequence length'
     value: 550
     input: slider
     min: 50
     max: 9000
     step: 10
-    sep: ""
+    sep: ''
   upperlen1:
-    label: "Gene1: Max. Sequence length"
+    label: 'Gene1: Max. Sequence length'
     value: 695
     input: slider
     min: 200
     max: 10000
     step: 10
-    sep: ""
+    sep: ''
   gene2:
-    label: "Select Gene 2 (as long as it's SRY)"
+    label: Select Gene 2 (as long as it's SRY)
     value: SRY
     input: radio
-    choices: [SRY]
+    choices: SRY
   lowerlen2:
-    label: "Gene2: Lower Sequence length"
+    label: 'Gene2: Lower Sequence length'
     value: 1300
     input: slider
     min: 50
     max: 9000
     step: 50
-    sep: ""
+    sep: ''
   upperlen2:
-    label: "Gene2: Max. Sequence length"
+    label: 'Gene2: Max. Sequence length'
     value: 1500
     input: slider
     min: 200
     max: 10000
     step: 50
-    sep: ""
+    sep: ''
   lenvar:
-    label: "Length variance from mean tolerated"
+    label: Length variance from mean tolerated
     value: 50
     input: slider
     min: 25
     max: 10000
     step: 5
-    sep: ""
+    sep: ''
   missing:
-    label: "Missing data tolerance"
+    label: Missing data tolerance
     value: 0.05
     input: slider
     min: 0
     max: 0.2
     step: 0.005
-    sep: ""
+    sep: ''
   distmodel:
-    label: "Model of molecular evolution:"
+    label: 'Model of molecular evolution:'
     value: TN93
     input: select
-    choices: [raw, JC69, K80, F81, K81, F84, BH87, T92, TN93, GG95, logdet, paralin, indel, indelblock]
+    choices:
+    - raw
+    - JC69
+    - K80
+    - F81
+    - K81
+    - F84
+    - BH87
+    - T92
+    - TN93
+    - GG95
+    - logdet
+    - paralin
+    - indel
+    - indelblock
   clustermethod:
-    label: "Clustering algorithm"
+    label: Clustering algorithm
     value: single
     input: select
-    choices: [complete, single, UPGMA, WPGMA, NJ, ML, inexact]
+    choices:
+    - complete
+    - single
+    - UPGMA
+    - WPGMA
+    - NJ
+    - ML
+    - inexact
   clusterthreshold:
-    label: "Cluster threshold"
+    label: Cluster threshold
     value: 0.05
     input: slider
     min: 0.01
     max: 0.2
     step: 0.01
   showalignments:
-    label: "Show alignments in browser?"
-    value: TRUE
+    label: Show alignments in browser?
+    value: yes
     input: radio
-    choices: [TRUE, FALSE]
-
+    choices:
+    - yes
+    - no
 ---
 <!-- USE this line in the console to knit with custom parameters -->
 <!-- rmarkdown::render("Assignment 2.Rmd", params = "ask") -->
 ---
+
+## Attribution
+The original version of this script was compiled by Nicholas Werry. Edits made to the script were a collaborative effort by Nicholas Werry, Kerry Woolnough, Julia Harvie, and Jason Moggridge. Briefly, the edits were as follows: knit with parameters and install missing dependencies functionality (Jason), Rmarkdown formatting (Jason and Nicholas), Sys.sleep to prevent API rate limit error (Jason and Kerry), COI histogram coloration (Kerry), SRY histogram breaks (Kerry, Julia, and Nick), boxplot (Kerry), count per species-cluster (Jason and Kerry), Silhouette analysis (Julia and Kerry), and Silhouette plot (Julia and Kerry).
+
 ## Setup
 ```{r setup}
 library(knitr)
@@ -202,15 +230,17 @@ gene2_df <- gene2_df[, c("Species", "ID", "Sequence")]
 gene1_df <- gene1_df %>%
   filter(!is.na(Sequence)) %>%
   mutate(FilteredSequence = str_remove_all(Sequence, "^N+|N+$|-")) %>%
-  filter(str_count(FilteredSequence, "N") <= (missing.data * str_count(Sequence))) %>%
-  filter(str_count(FilteredSequence) >= median(str_count(FilteredSequence)) - length.var & str_count(FilteredSequence) <= median(str_count(FilteredSequence)) + length.var) %>%
+  filter(str_count(FilteredSequence,"N") <= (missing.data * str_count(Sequence))) %>%
+  filter(str_count(FilteredSequence) >= median(str_count(FilteredSequence)) - length.var &
+           str_count(FilteredSequence) <= median(str_count(FilteredSequence)) + length.var) %>%
   select(-"Sequence")
 gene2_df <- gene2_df %>%
   filter(!is.na(Sequence)) %>%
   mutate(FilteredSequence = str_remove_all(Sequence, "^N+|N+$|-")) %>%
-  filter(str_count(FilteredSequence, "N") <= (missing.data * str_count(Sequence))) %>%
-  filter(str_count(FilteredSequence) >= median(str_count(FilteredSequence)) - length.var & str_count(FilteredSequence) <= median(str_count(FilteredSequence)) + length.var) %>%
-   select(-"Sequence")
+  filter(str_count(FilteredSequence,"N") <= (missing.data * str_count(Sequence))) %>%
+  filter(str_count(FilteredSequence)>= median(str_count(FilteredSequence)) - length.var &
+           str_count(FilteredSequence) <= median(str_count(FilteredSequence)) + length.var) %>%
+  select(-"Sequence")
 
 #Convert Sequence to DNAStringSet format
 gene1_df$FilteredSequence <- DNAStringSet(gene1_df$FilteredSequence)
@@ -243,12 +273,12 @@ summary(nchar(gene2_df$FilteredSequence))
 hist((nchar(gene2_df$FilteredSequence)), main = sprintf("%s Sequence Length", gene2), xlab = "Sequence Length (Nucleotides)", ylab = "Number of Sequences",breaks=seq(0,2000, by = 200),col=4)
 boxplot((nchar(gene1_df$FilteredSequence)),
         (nchar(gene2_df$FilteredSequence)),
-        names=c(sprintf("%s", gene1),sprintf("%s",gene2)),
-        col=c("orange","yellow"),
-        main= sprintf("Distribution of %s and %s Sequence Length", gene1, gene2),
-        ylab="Gene",
-        xlab="Sequence Length",
-        horizontal=TRUE
+        names = c(sprintf("%s", gene1), sprintf("%s", gene2)),
+        col = c("orange", "yellow"),
+        main = sprintf("Distribution of %s and %s Sequence Length", gene1, gene2),
+        ylab = "Gene",
+        xlab = "Sequence Length",
+        horizontal = TRUE
 )
 ```
 
@@ -281,12 +311,16 @@ sprintf("%s sequences were converted to %s", gene2, class(gene2_DNAbin))
 ```
 ```{r matrix, results = "hold"}
 #Create distance matrix
-gene1_matrix <- dist.dna(gene1_DNAbin, model = chosen.model, as.matrix = TRUE, pairwise.deletion = TRUE)
-gene2_matrix <- dist.dna(gene2_DNAbin, model = chosen.model, as.matrix = TRUE, pairwise.deletion = TRUE)
+gene1_matrix <- dist.dna(gene1_DNAbin, model = chosen.model,
+                         as.matrix = TRUE, pairwise.deletion = TRUE)
+gene2_matrix <- dist.dna(gene2_DNAbin, model = chosen.model,
+                         as.matrix = TRUE, pairwise.deletion = TRUE)
 
 #Cluster and create dendrogram
-gene1_clusters <- IdClusters(gene1_matrix, method = clustering.method, cutoff = clustering.threshold, showPlot = FALSE, type = "both", verbose = FALSE)
-gene2_clusters <- IdClusters(gene2_matrix, method = clustering.method, cutoff = clustering.threshold, showPlot = FALSE, type = "both", verbose = FALSE)
+gene1_clusters <- IdClusters(gene1_matrix, method = clustering.method,
+                             cutoff = clustering.threshold, showPlot = FALSE, type = "both", verbose = FALSE)
+gene2_clusters <- IdClusters(gene2_matrix, method = clustering.method,
+                             cutoff = clustering.threshold, showPlot = FALSE, type = "both", verbose = FALSE)
 
 #Convert to dend format
 gene1_gg <- as.dendrogram(gene1_clusters[[2]])
@@ -304,7 +338,7 @@ sprintf("%s sequences form %.0f cluster(s).", gene2, length(unique(unlist(gene2_
 ```
 
 View the number of each species assigned to each cluster.
-```{r Cluster Assignment, results = "hold"} 
+```{r Cluster Assignment, results = "hold",message=FALSE} 
 
 #Create Simple function to obtain counts per species per cluster
 count.species.clusters <- function(gene.clusters, gene.df) {
@@ -315,6 +349,7 @@ gene.df$FilteredSequence<-as.data.frame(gene.df$FilteredSequence)
 
 #Convert clusters to dataframe and compute new column, ID, populated by the row names clusters dataframe
 cluster.df <- as.data.frame(gene.clusters[1]) %>%
+  
   mutate(ID = row.names(as.data.frame(gene.clusters[1])))
 
 #To the cluster dataframe, add columns from gene.df by ID, group by cluster and species, summarize the count per group, and arrange in clusters by descending order
@@ -332,6 +367,7 @@ gene2_dfSpeciesCluster <- count.species.clusters(gene2_clusters,gene2_df)
 
 #Output count per species per cluster
 sprintf("%s species cluster assignments",gene1)
+
 gene1_dfSpeciesCluster
 sprintf("%s species cluster assignments",gene2)
 gene2_dfSpeciesCluster
@@ -355,11 +391,13 @@ To compare how COI and SRY clustering differed, the above "grouping factors" wer
 Calculate silhouette index to evaluate internal validity
 ```{r Silhouette Index, results = "hold"} 
 
-#Silhouette for gene1
+#Calculate Silhouette summary for gene1
 silhouette_gene1 <- silhouette (unlist(gene1_clusters[[1]]),dmatrix = gene1_matrix)
 summary.silhouette_gene1<-summary(silhouette_gene1)
+
+#Output silhouette summary
+sprintf("Silhouette summary for %s",gene1)
 summary.silhouette_gene1
-#Note: k is number of clusters, n is number of observations to be partitioned into clusters. silhouette statistics are only defined for 2 <= k <= n-1. For gene 1, k=1, and n=40. For gene 2,k=4 and n=48.
 ```
 
 Plot Silhouette Analysis
